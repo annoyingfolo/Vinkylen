@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vinbanken</title>
+    <title>Vinkylen</title>
+
+    <script src="https://unpkg.com/@zxing/library@0.21.3"></script>
 
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
             margin: 0;
-            padding: 40px 20px;
+            padding: 30px 20px;
             background: #f7f4f0;
             color: #2b2522;
             text-align: center;
@@ -17,13 +19,11 @@
 
         h1 {
             font-size: 38px;
-            margin-top: 50px;
-            margin-bottom: 10px;
+            margin-top: 30px;
         }
 
         p {
             color: #756d68;
-            margin-bottom: 40px;
         }
 
         button {
@@ -34,32 +34,111 @@
             background: #5b2333;
             color: white;
             cursor: pointer;
+            margin: 20px 0;
         }
 
-        button:active {
-            transform: scale(0.98);
+        #reader {
+            width: 100%;
+            max-width: 500px;
+            margin: 20px auto;
+            display: none;
         }
 
-        .wine-count {
-            margin-top: 60px;
-            font-size: 18px;
+        #result {
+            margin-top: 30px;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        #stopButton {
+            display: none;
+            background: #756d68;
         }
     </style>
 </head>
 
 <body>
 
-    <h1>🍷 Vinbanken</h1>
+    <h1>🍷 Vinkylen</h1>
 
     <p>Din personliga vinlista</p>
 
-    <button onclick="alert('Kameran kommer här!')">
-        + Skanna vin
+    <button id="scanButton">
+        📷 Skanna vin
     </button>
 
-    <div class="wine-count">
+    <div id="reader"></div>
+
+    <button id="stopButton">
+        Avsluta skanning
+    </button>
+
+    <div id="result"></div>
+
+    <div style="margin-top: 50px;">
         0 viner i din logg
     </div>
+
+    <script>
+        const scanButton = document.getElementById("scanButton");
+        const stopButton = document.getElementById("stopButton");
+        const reader = document.getElementById("reader");
+        const result = document.getElementById("result");
+
+        let scanner;
+
+        scanButton.addEventListener("click", async () => {
+            reader.style.display = "block";
+            stopButton.style.display = "inline-block";
+            scanButton.style.display = "none";
+            result.textContent = "";
+
+            scanner = new ZXing.BrowserMultiFormatReader();
+
+            try {
+                const devices = await scanner.listVideoInputDevices();
+
+                if (devices.length === 0) {
+                    result.textContent = "Ingen kamera hittades.";
+                    return;
+                }
+
+                const cameraId = devices[devices.length - 1].deviceId;
+
+                scanner.decodeFromVideoDevice(
+                    cameraId,
+                    "reader",
+                    (scanResult, error) => {
+                        if (scanResult) {
+                            const barcode = scanResult.getText();
+
+                            result.textContent =
+                                "Streckkod hittad: " + barcode;
+
+                            scanner.reset();
+                            reader.style.display = "none";
+                            stopButton.style.display = "none";
+                            scanButton.style.display = "inline-block";
+                        }
+                    }
+                );
+
+            } catch (error) {
+                result.textContent =
+                    "Kunde inte starta kameran: " + error;
+            }
+        });
+
+        stopButton.addEventListener("click", () => {
+            if (scanner) {
+                scanner.reset();
+            }
+
+            reader.style.display = "none";
+            stopButton.style.display = "none";
+            scanButton.style.display = "inline-block";
+        });
+    </script>
 
 </body>
 </html>
