@@ -20,10 +20,13 @@
         h1 {
             font-size: 38px;
             margin-top: 30px;
+            margin-bottom: 10px;
         }
 
         p {
             color: #756d68;
+            font-size: 18px;
+            margin-bottom: 30px;
         }
 
         button {
@@ -33,34 +36,34 @@
             font-size: 18px;
             background: #5b2333;
             color: white;
-            cursor: pointer;
-            margin: 20px 0;
+            margin: 15px 0;
         }
 
-        #reader {
+        #videoContainer {
+            display: none;
             width: 100%;
             max-width: 500px;
             margin: 20px auto;
-            display: none;
-            overflow: hidden;
             border-radius: 16px;
+            overflow: hidden;
+            background: black;
         }
 
-        #reader video {
+        #video {
+            display: block;
             width: 100%;
             height: auto;
-            display: block;
-        }
-        
-        #result {
-            margin-top: 30px;
-            font-size: 20px;
-            font-weight: 600;
         }
 
         #stopButton {
             display: none;
             background: #756d68;
+        }
+
+        #result {
+            margin-top: 25px;
+            font-size: 20px;
+            font-weight: 600;
         }
     </style>
 </head>
@@ -75,7 +78,9 @@
         📷 Skanna vin
     </button>
 
-    <div id="reader"></div>
+    <div id="videoContainer">
+        <video id="video" autoplay playsinline></video>
+    </div>
 
     <button id="stopButton">
         Avsluta skanning
@@ -90,16 +95,18 @@
     <script>
         const scanButton = document.getElementById("scanButton");
         const stopButton = document.getElementById("stopButton");
-        const reader = document.getElementById("reader");
+        const videoContainer = document.getElementById("videoContainer");
+        const video = document.getElementById("video");
         const result = document.getElementById("result");
 
-        let scanner;
+        let scanner = null;
 
         scanButton.addEventListener("click", async () => {
-            reader.style.display = "block";
+
+            result.textContent = "";
+            videoContainer.style.display = "block";
             stopButton.style.display = "inline-block";
             scanButton.style.display = "none";
-            result.textContent = "";
 
             scanner = new ZXing.BrowserMultiFormatReader();
 
@@ -111,12 +118,14 @@
                     return;
                 }
 
-                const cameraId = devices[devices.length - 1].deviceId;
+                // Försök använda den bakre kameran
+                let cameraId = devices[devices.length - 1].deviceId;
 
                 scanner.decodeFromVideoDevice(
                     cameraId,
-                    "reader",
+                    video,
                     (scanResult, error) => {
+
                         if (scanResult) {
                             const barcode = scanResult.getText();
 
@@ -124,7 +133,8 @@
                                 "Streckkod hittad: " + barcode;
 
                             scanner.reset();
-                            reader.style.display = "none";
+
+                            videoContainer.style.display = "none";
                             stopButton.style.display = "none";
                             scanButton.style.display = "inline-block";
                         }
@@ -132,17 +142,19 @@
                 );
 
             } catch (error) {
+                console.error(error);
                 result.textContent =
-                    "Kunde inte starta kameran: " + error;
+                    "Kunde inte starta kameran.";
             }
         });
 
         stopButton.addEventListener("click", () => {
+
             if (scanner) {
                 scanner.reset();
             }
 
-            reader.style.display = "none";
+            videoContainer.style.display = "none";
             stopButton.style.display = "none";
             scanButton.style.display = "inline-block";
         });
