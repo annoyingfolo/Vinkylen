@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Vinkylen</title>
 
+    <!-- Streckkodsläsare -->
     <script src="https://unpkg.com/@zxing/library@0.21.3"></script>
 
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             margin: 0;
             padding: 30px 20px;
             background: #f7f4f0;
@@ -20,13 +22,10 @@
         h1 {
             font-size: 38px;
             margin-top: 30px;
-            margin-bottom: 10px;
         }
 
         p {
             color: #756d68;
-            font-size: 18px;
-            margin-bottom: 30px;
         }
 
         button {
@@ -36,17 +35,17 @@
             font-size: 18px;
             background: #5b2333;
             color: white;
-            margin: 15px 0;
+            margin: 20px 0;
         }
 
-        #videoContainer {
+        #camera {
             display: none;
             width: 100%;
             max-width: 500px;
             margin: 20px auto;
+            background: black;
             border-radius: 16px;
             overflow: hidden;
-            background: black;
         }
 
         #video {
@@ -55,7 +54,7 @@
             height: auto;
         }
 
-        #stopButton {
+        #stop {
             display: none;
             background: #756d68;
         }
@@ -74,15 +73,15 @@
 
     <p>Din personliga vinlista</p>
 
-    <button id="scanButton">
+    <button id="start">
         📷 Skanna vin
     </button>
 
-    <div id="videoContainer">
-        <video id="video" autoplay playsinline></video>
+    <div id="camera">
+        <video id="video" autoplay muted playsinline></video>
     </div>
 
-    <button id="stopButton">
+    <button id="stop">
         Avsluta skanning
     </button>
 
@@ -93,71 +92,71 @@
     </div>
 
     <script>
-        const scanButton = document.getElementById("scanButton");
-        const stopButton = document.getElementById("stopButton");
-        const videoContainer = document.getElementById("videoContainer");
+
+        const startButton = document.getElementById("start");
+        const stopButton = document.getElementById("stop");
+        const camera = document.getElementById("camera");
         const video = document.getElementById("video");
         const result = document.getElementById("result");
 
-        let scanner = null;
+        let codeReader = null;
 
-        scanButton.addEventListener("click", async () => {
+        startButton.addEventListener("click", async () => {
 
             result.textContent = "";
-            videoContainer.style.display = "block";
-            stopButton.style.display = "inline-block";
-            scanButton.style.display = "none";
 
-            scanner = new ZXing.BrowserMultiFormatReader();
+            camera.style.display = "block";
+            startButton.style.display = "none";
+            stopButton.style.display = "inline-block";
 
             try {
-                const devices = await scanner.listVideoInputDevices();
 
-                if (devices.length === 0) {
-                    result.textContent = "Ingen kamera hittades.";
-                    return;
-                }
+                codeReader = new ZXing.BrowserMultiFormatReader();
 
-                // Försök använda den bakre kameran
-                let cameraId = devices[devices.length - 1].deviceId;
-
-                scanner.decodeFromVideoDevice(
-                    cameraId,
+                await codeReader.decodeFromVideoDevice(
+                    undefined,
                     video,
                     (scanResult, error) => {
 
                         if (scanResult) {
+
                             const barcode = scanResult.getText();
 
                             result.textContent =
                                 "Streckkod hittad: " + barcode;
 
-                            scanner.reset();
+                            codeReader.reset();
 
-                            videoContainer.style.display = "none";
+                            camera.style.display = "none";
                             stopButton.style.display = "none";
-                            scanButton.style.display = "inline-block";
+                            startButton.style.display = "inline-block";
                         }
                     }
                 );
 
             } catch (error) {
+
                 console.error(error);
+
                 result.textContent =
-                    "Kunde inte starta kameran.";
+                    "Kunde inte starta streckkodsläsaren.";
+
             }
+
         });
 
         stopButton.addEventListener("click", () => {
 
-            if (scanner) {
-                scanner.reset();
+            if (codeReader) {
+                codeReader.reset();
             }
 
-            videoContainer.style.display = "none";
+            camera.style.display = "none";
             stopButton.style.display = "none";
-            scanButton.style.display = "inline-block";
+            startButton.style.display = "inline-block";
+
         });
+
     </script>
 
 </body>
