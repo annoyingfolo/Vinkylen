@@ -7,6 +7,7 @@
 
     <title>Vinkylen</title>
 
+    <!-- Streckkodsläsare -->
     <script src="https://unpkg.com/@zxing/library@0.21.3"></script>
 
     <style>
@@ -35,11 +36,12 @@
             font-size: 18px;
             background: #5b2333;
             color: white;
-            margin: 20px 0;
+            margin: 10px 5px;
         }
 
         #camera {
             display: none;
+            position: relative;
             width: 100%;
             max-width: 500px;
             margin: 20px auto;
@@ -54,6 +56,40 @@
             height: auto;
         }
 
+        #scanFrame {
+            position: absolute;
+            left: 8%;
+            right: 8%;
+            top: 35%;
+            height: 30%;
+            border: 3px solid white;
+            border-radius: 12px;
+            box-sizing: border-box;
+            pointer-events: none;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.25);
+        }
+
+        #scanHint {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 15px;
+            color: white;
+            font-size: 15px;
+            text-shadow: 0 1px 3px black;
+            pointer-events: none;
+        }
+
+        #controls {
+            display: none;
+            margin: 5px auto 10px;
+        }
+
+        #controls button {
+            padding: 12px 18px;
+            font-size: 16px;
+        }
+
         #stop {
             display: none;
             background: #756d68;
@@ -63,38 +99,6 @@
             margin-top: 25px;
             font-size: 20px;
             font-weight: 600;
-        }
-
-        #product {
-            display: none;
-            max-width: 500px;
-            margin: 25px auto;
-            padding: 24px;
-            background: white;
-            border-radius: 18px;
-            text-align: left;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        }
-
-        #product h2 {
-            margin: 0 0 6px 0;
-            font-size: 28px;
-        }
-
-        #product .subtitle {
-            color: #756d68;
-            font-size: 19px;
-            margin-bottom: 18px;
-        }
-
-        #product .details {
-            line-height: 1.7;
-        }
-
-        #product .price {
-            font-size: 24px;
-            font-weight: 700;
-            margin-top: 18px;
         }
     </style>
 </head>
@@ -111,6 +115,17 @@
 
     <div id="camera">
         <video id="video" autoplay muted playsinline></video>
+
+        <div id="scanFrame"></div>
+
+        <div id="scanHint">
+            Placera streckkoden innanför rutan
+        </div>
+    </div>
+
+    <div id="controls">
+        <button id="zoom">🔍 2×</button>
+        <button id="torch" style="display:none;">🔦</button>
     </div>
 
     <button id="stop">
@@ -118,20 +133,6 @@
     </button>
 
     <div id="result"></div>
-
-    <div id="product">
-        <h2 id="productName"></h2>
-        <div class="subtitle" id="productProducer"></div>
-
-        <div class="details">
-            <div id="productVintage"></div>
-            <div id="productCountry"></div>
-            <div id="productVolume"></div>
-            <div id="productAlcohol"></div>
-        </div>
-
-        <div class="price" id="productPrice"></div>
-    </div>
 
     <div style="margin-top: 50px;">
         0 viner i din logg
@@ -143,82 +144,136 @@
         const camera = document.getElementById("camera");
         const video = document.getElementById("video");
         const result = document.getElementById("result");
-        const product = document.getElementById("product");
-
-        const productName = document.getElementById("productName");
-        const productProducer = document.getElementById("productProducer");
-        const productVintage = document.getElementById("productVintage");
-        const productCountry = document.getElementById("productCountry");
-        const productVolume = document.getElementById("productVolume");
-        const productAlcohol = document.getElementById("productAlcohol");
-        const productPrice = document.getElementById("productPrice");
+        const controls = document.getElementById("controls");
+        const zoomButton = document.getElementById("zoom");
+        const torchButton = document.getElementById("torch");
 
         let codeReader = null;
+        let videoTrack = null;
+        let currentZoom = 1;
+        let torchOn = false;
 
-        async function lookupWine(barcode) {
-            result.textContent = "Hämtar produktinformation…";
-            product.style.display = "none";
+        async function improveCamera() {
+            if (!video.srcObject) {
+                return;
+            }
 
-            try {
-                const response = await fetch(
-                    "https://vinkylen-api.jonas-zackrisson.workers.dev/?ean=" +
-                    encodeURIComponent(barcode)
+            const tracks = video.srcObject.getVideoTracks();
+
+            if (!tracks.length) {
+                return;
+            }
+
+            videoTrack = tracks[0];
+
+            const capabilities = videoTrack.getCapabilities
+                ? videoTrack.getCapabilities()
+                : {};
+
+            const advanced = {};
+
+            // Försök använda kontinuerlig autofokus.
+            if (
+                capabilities.focusMode &&
+                capabilities.focusMode.includes("continuous")
+            ) {
+                advanced.focusMode = "continuous";
+            }
+
+            // Börja med 2× zoom om kameran stöder det.
+            if (capabilities.zoom) {
+                currentZoom = Math.min(
+                    2,
+                    capabilities.zoom.max || 2
                 );
 
-                const data = await response.json();
-
-                if (!response.ok) {
-                    result.textContent =
-                        data.error || "Kunde inte hitta vinet.";
-                    return;
+                if (currentZoom >= 1) {
+                    advanced.zoom = currentZoom;
                 }
 
-                productName.textContent = data.name || "Okänt vin";
-                productProducer.textContent = data.producer || "";
+                zoomButton.style.display = "inline-block";
+                zoomButton.textContent = "🔍 " + currentZoom + "×";
+            } else {
+                zoomButton.style.display = "none";
+            }
 
-                productVintage.textContent =
-                    data.vintage
-                        ? "Årgång: " + data.vintage
-                        : "";
+            // Visa ficklampa om kameran stöder det.
+            if (capabilities.torch) {
+                torchButton.style.display = "inline-block";
+            } else {
+                torchButton.style.display = "none";
+            }
 
-                productCountry.textContent =
-                    data.country
-                        ? "Land: " + data.country
-                        : "";
-
-                productVolume.textContent =
-                    data.volume
-                        ? "Volym: " + data.volume + " ml"
-                        : "";
-
-                productAlcohol.textContent =
-                    data.alcoholPercentage
-                        ? "Alkohol: " + data.alcoholPercentage + " %"
-                        : "";
-
-                productPrice.textContent =
-                    data.price != null
-                        ? data.price + " kr"
-                        : "";
-
-                result.textContent =
-                    "Streckkod: " + barcode;
-
-                product.style.display = "block";
-
-            } catch (error) {
-                console.error(error);
-                result.textContent =
-                    "Kunde inte hämta produktinformationen.";
+            if (Object.keys(advanced).length) {
+                try {
+                    await videoTrack.applyConstraints({
+                        advanced: [advanced]
+                    });
+                } catch (error) {
+                    console.log("Kunde inte förbättra kameran:", error);
+                }
             }
         }
+
+        async function setZoom(zoom) {
+            if (!videoTrack) {
+                return;
+            }
+
+            const capabilities = videoTrack.getCapabilities
+                ? videoTrack.getCapabilities()
+                : {};
+
+            if (!capabilities.zoom) {
+                return;
+            }
+
+            const min = capabilities.zoom.min || 1;
+            const max = capabilities.zoom.max || 1;
+
+            const newZoom = zoom <= 1 ? min : Math.min(2, max);
+
+            try {
+                await videoTrack.applyConstraints({
+                    advanced: [{ zoom: newZoom }]
+                });
+
+                currentZoom = newZoom;
+                zoomButton.textContent = "🔍 " + newZoom + "×";
+            } catch (error) {
+                console.log("Kunde inte ändra zoom:", error);
+            }
+        }
+
+        zoomButton.addEventListener("click", () => {
+            setZoom(currentZoom > 1 ? 1 : 2);
+        });
+
+        torchButton.addEventListener("click", async () => {
+            if (!videoTrack) {
+                return;
+            }
+
+            try {
+                torchOn = !torchOn;
+
+                await videoTrack.applyConstraints({
+                    advanced: [{ torch: torchOn }]
+                });
+
+                torchButton.textContent =
+                    torchOn ? "🔦 På" : "🔦 Av";
+
+            } catch (error) {
+                console.log("Kunde inte använda ficklampan:", error);
+            }
+        });
 
         startButton.addEventListener("click", async () => {
 
             result.textContent = "";
-            product.style.display = "none";
-
             camera.style.display = "block";
+            controls.style.display = "block";
             startButton.style.display = "none";
             stopButton.style.display = "inline-block";
 
@@ -226,8 +281,21 @@
 
                 codeReader = new ZXing.BrowserMultiFormatReader();
 
-                await codeReader.decodeFromVideoDevice(
-                    undefined,
+                await codeReader.decodeFromConstraints(
+                    {
+                        video: {
+                            facingMode: {
+                                ideal: "environment"
+                            },
+                            width: {
+                                ideal: 1920
+                            },
+                            height: {
+                                ideal: 1080
+                            }
+                        },
+                        audio: false
+                    },
                     video,
                     (scanResult, error) => {
 
@@ -235,16 +303,38 @@
 
                             const barcode = scanResult.getText();
 
+                            result.textContent =
+                                "Streckkod hittad: " + barcode;
+
                             codeReader.reset();
 
                             camera.style.display = "none";
+                            controls.style.display = "none";
                             stopButton.style.display = "none";
                             startButton.style.display = "inline-block";
 
-                            lookupWine(barcode);
+                            if (video.srcObject) {
+                                video.srcObject
+                                    .getTracks()
+                                    .forEach(track => track.stop());
+                            }
+
+                            videoTrack = null;
                         }
                     }
                 );
+
+                // Vänta tills videoströmmen finns innan vi
+                // försöker justera fokus/zoom/ficklampa.
+                if (video.readyState >= 1) {
+                    await improveCamera();
+                } else {
+                    video.addEventListener(
+                        "loadedmetadata",
+                        improveCamera,
+                        { once: true }
+                    );
+                }
 
             } catch (error) {
 
@@ -252,6 +342,11 @@
 
                 result.textContent =
                     "Kunde inte starta streckkodsläsaren.";
+
+                camera.style.display = "none";
+                controls.style.display = "none";
+                stopButton.style.display = "none";
+                startButton.style.display = "inline-block";
             }
         });
 
@@ -261,10 +356,21 @@
                 codeReader.reset();
             }
 
+            if (video.srcObject) {
+                video.srcObject
+                    .getTracks()
+                    .forEach(track => track.stop());
+            }
+
+            videoTrack = null;
+            torchOn = false;
+
             camera.style.display = "none";
+            controls.style.display = "none";
             stopButton.style.display = "none";
             startButton.style.display = "inline-block";
         });
+
     </script>
 
 </body>
