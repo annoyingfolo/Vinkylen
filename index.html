@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -6,7 +7,6 @@
 
     <title>Vinkylen</title>
 
-    <!-- Streckkodsläsare -->
     <script src="https://unpkg.com/@zxing/library@0.21.3"></script>
 
     <style>
@@ -64,6 +64,38 @@
             font-size: 20px;
             font-weight: 600;
         }
+
+        #product {
+            display: none;
+            max-width: 500px;
+            margin: 25px auto;
+            padding: 24px;
+            background: white;
+            border-radius: 18px;
+            text-align: left;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        #product h2 {
+            margin: 0 0 6px 0;
+            font-size: 28px;
+        }
+
+        #product .subtitle {
+            color: #756d68;
+            font-size: 19px;
+            margin-bottom: 18px;
+        }
+
+        #product .details {
+            line-height: 1.7;
+        }
+
+        #product .price {
+            font-size: 24px;
+            font-weight: 700;
+            margin-top: 18px;
+        }
     </style>
 </head>
 
@@ -87,23 +119,104 @@
 
     <div id="result"></div>
 
+    <div id="product">
+        <h2 id="productName"></h2>
+        <div class="subtitle" id="productProducer"></div>
+
+        <div class="details">
+            <div id="productVintage"></div>
+            <div id="productCountry"></div>
+            <div id="productVolume"></div>
+            <div id="productAlcohol"></div>
+        </div>
+
+        <div class="price" id="productPrice"></div>
+    </div>
+
     <div style="margin-top: 50px;">
         0 viner i din logg
     </div>
 
     <script>
-
         const startButton = document.getElementById("start");
         const stopButton = document.getElementById("stop");
         const camera = document.getElementById("camera");
         const video = document.getElementById("video");
         const result = document.getElementById("result");
+        const product = document.getElementById("product");
+
+        const productName = document.getElementById("productName");
+        const productProducer = document.getElementById("productProducer");
+        const productVintage = document.getElementById("productVintage");
+        const productCountry = document.getElementById("productCountry");
+        const productVolume = document.getElementById("productVolume");
+        const productAlcohol = document.getElementById("productAlcohol");
+        const productPrice = document.getElementById("productPrice");
 
         let codeReader = null;
+
+        async function lookupWine(barcode) {
+            result.textContent = "Hämtar produktinformation…";
+            product.style.display = "none";
+
+            try {
+                const response = await fetch(
+                    "https://vinkylen-api.jonas-zackrisson.workers.dev/?ean=" +
+                    encodeURIComponent(barcode)
+                );
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    result.textContent =
+                        data.error || "Kunde inte hitta vinet.";
+                    return;
+                }
+
+                productName.textContent = data.name || "Okänt vin";
+                productProducer.textContent = data.producer || "";
+
+                productVintage.textContent =
+                    data.vintage
+                        ? "Årgång: " + data.vintage
+                        : "";
+
+                productCountry.textContent =
+                    data.country
+                        ? "Land: " + data.country
+                        : "";
+
+                productVolume.textContent =
+                    data.volume
+                        ? "Volym: " + data.volume + " ml"
+                        : "";
+
+                productAlcohol.textContent =
+                    data.alcoholPercentage
+                        ? "Alkohol: " + data.alcoholPercentage + " %"
+                        : "";
+
+                productPrice.textContent =
+                    data.price != null
+                        ? data.price + " kr"
+                        : "";
+
+                result.textContent =
+                    "Streckkod: " + barcode;
+
+                product.style.display = "block";
+
+            } catch (error) {
+                console.error(error);
+                result.textContent =
+                    "Kunde inte hämta produktinformationen.";
+            }
+        }
 
         startButton.addEventListener("click", async () => {
 
             result.textContent = "";
+            product.style.display = "none";
 
             camera.style.display = "block";
             startButton.style.display = "none";
@@ -122,14 +235,13 @@
 
                             const barcode = scanResult.getText();
 
-                            result.textContent =
-                                "Streckkod hittad: " + barcode;
-
                             codeReader.reset();
 
                             camera.style.display = "none";
                             stopButton.style.display = "none";
                             startButton.style.display = "inline-block";
+
+                            lookupWine(barcode);
                         }
                     }
                 );
@@ -140,9 +252,7 @@
 
                 result.textContent =
                     "Kunde inte starta streckkodsläsaren.";
-
             }
-
         });
 
         stopButton.addEventListener("click", () => {
@@ -154,10 +264,9 @@
             camera.style.display = "none";
             stopButton.style.display = "none";
             startButton.style.display = "inline-block";
-
         });
-
     </script>
 
 </body>
 </html>
+```
